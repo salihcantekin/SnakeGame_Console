@@ -1,16 +1,11 @@
 ﻿using SnakeGame.ConsoleApp;
 using System.Drawing;
 
-//Console.BackgroundColor = ConsoleColor.Black;
-//Console.WindowWidth = 100;
-//Console.WindowHeight = 100;
+
 Console.CursorVisible = false;
 
-int borderWidth = 50;
-int borderHeigth = 20;
-
-int borderX = 5;
-int borderY = 5;
+int borderWidth = 50, borderHeigth = 20;
+int borderX = 5, borderY = 5;
 
 var message = "Press any key to start the game";
 
@@ -24,5 +19,8 @@ Snake snake = new(snakeChar: 'O',
                   snakePoint: new Point(5, 5),
                   snakeInitialLength: 2,
                   new Rectangle(borderX, borderY, borderWidth, borderHeigth));
+
+snake.SetSnakeChar('■');
+snake.SetInitialSnakeLength(5);
 
 await snake.Run();

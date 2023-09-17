@@ -4,39 +4,128 @@ namespace SnakeGame.ConsoleApp;
 
 public class Snake
 {
+    #region Constants
     private const int DEFAULT_DELAY = 75;
-    private readonly LinkedList<Point> segments;
-    private Point food;
-    private int dx = 1,
-                dy = 0,
-                foodEaten = 0;
+    private const int DEFAULT_SNAKE_LENGTH = 5;
+    private const double DEFAULT_VERTICAL_DELAY_RATIO = 0.8;
+    private const double delay = DEFAULT_DELAY;
+    private const double delayBoost = DEFAULT_DELAY / 2;
 
+    private const ConsoleColor FOOD_COLOR = ConsoleColor.Green;
+    private const ConsoleColor SNAKE_COLOR = ConsoleColor.Yellow;
+    private const char DEFAULT_SNAKE_CHAR = 'O';
+    private const char BORDER_CHAR = '#';
+    private const char FOOD_CHAR = '*';
+
+    private const Direction DEFAULT_DIRECTION = Direction.Right;
+
+    private static Point DEFAULT_SNAKE_POINT = Point.Empty;
+
+    private static Rectangle DEFAULT_BORDER_REC = new(1, 1, 50, 20);
+
+    #endregion
+
+    #region Private Variables
+
+    private LinkedList<Point> segments;
+    private char snakeChar;
+    private HashSet<Point> emptyPoints;
+
+    private Point food, snakeStartingPoint;
+    private int foodEaten = 0, initialSnakeLength;
+    private Direction currentPosition;
     private Rectangle borderRec;
-
-    private readonly double delay = DEFAULT_DELAY;
-    private readonly double delayBoost = DEFAULT_DELAY / 2;
-
-    private readonly char snakeChar = 'O',
-                          borderChar = '#';
 
     private bool speedBoosted = false,
                  isPaused = false;
 
-    private readonly HashSet<Point> emptyPoints;
+    #endregion
+
+    #region Constructors
+
+    public Snake()
+    {
+        SetDefaults();
+    }
 
     public Snake(char snakeChar,
-                 Point snakePoint,
-                 int snakeInitialLength,
-                 Rectangle borderRec)
+               Point snakePoint,
+               int snakeInitialLength,
+               Rectangle borderRec)
     {
         this.borderRec = borderRec;
         this.snakeChar = snakeChar;
+        snakeStartingPoint = snakePoint;
+        initialSnakeLength = snakeInitialLength;
+    }
 
+    #endregion
+
+    
+    public async Task Run(CancellationToken token = default)
+    {
+        Adjust();
+        PrintBorder();
+        PrintFood(food.X, food.Y); // initial food
+
+        while (!token.IsCancellationRequested)
+        {
+            WaitForKeyPressAndSetDirectionAndDelay();
+            PrintStatusBar();
+
+            // save old head and tail
+            var oldTail = segments.Last.Value;
+            var oldHead = segments.First.Value;
+
+            // head to the new position
+            var x = currentPosition == Direction.Right ? 1 : currentPosition == Direction.Left ? -1 : 0;
+            var y = currentPosition == Direction.Down ? 1 : currentPosition == Direction.Up ? -1 : 0;
+            var head = new Point(segments.First.Value.X + x,
+                                 segments.First.Value.Y + y);
+
+            segments.AddFirst(head);
+
+            if (head == food) // Eat the food
+            {
+                await CreateFood(token);
+                PrintFood(food.X, food.Y);
+
+                foodEaten++;
+                PrintStatusBar();
+            }
+            else
+            {
+                segments.RemoveLast();
+            }
+
+            ConsoleHelper.ClearText(oldTail.X, oldTail.Y); // remove old tail
+
+
+            DrawSnakeHead(head, currentPosition);
+            // replace old head with snakeChar
+            ConsoleHelper.ResetCursorPosition(oldHead.X, oldHead.Y);
+            Console.Write(snakeChar);
+
+            // Check for collision with walls or itself
+            bool hasCollision = HasCollision(head.X, head.Y);
+            if (hasCollision)
+            {
+                await PrintGameOver(token);
+                break;
+            }
+
+            await Task.Delay((int)GetDelay(), token);
+        }
+    }
+
+    private void Adjust()
+    {
         segments = new LinkedList<Point>();
 
-        for (int i = 0; i < snakeInitialLength; i++)
+        for (int i = 0; i < initialSnakeLength; i++)
         {
-            segments.AddLast(new Point(borderRec.Left + snakePoint.X - i, borderRec.Top + snakePoint.Y));
+            segments.AddLast(new Point(borderRec.Left + snakeStartingPoint.X - i,
+                                       borderRec.Top + snakeStartingPoint.Y));
         }
 
         // inital segment excluding
@@ -53,108 +142,39 @@ public class Snake
 
         CreateFood().GetAwaiter().GetResult();
     }
-
-    public async Task CreateFood(CancellationToken token = default)
+    private void SetDefaults()
     {
-        if (emptyPoints.Count == 0)
-        {
-            await PrintComplete(token);
-        }
-
-        var randomIndex = Random.Shared.Next(0, emptyPoints.Count);
-        food = emptyPoints.ElementAt(randomIndex);
-        emptyPoints.Remove(food);
+        borderRec = DEFAULT_BORDER_REC;
+        snakeChar = DEFAULT_SNAKE_CHAR;
+        initialSnakeLength = DEFAULT_SNAKE_LENGTH;
+        snakeStartingPoint = new Point(1, 1);
+        currentPosition = DEFAULT_DIRECTION;
     }
 
-    private static void DrawSnakeHead(Point position, int dx, int dy)
+    
+
+    private static void DrawSnakeHead(Point position, Direction currentPosition)
     {
         ConsoleHelper.ResetCursorPosition(position.X, position.Y);
 
-        if (dx == 0 && dy == -1)
+        var headChar = currentPosition switch
         {
-            Console.Write("^");
-            //Console.Write("↑");
-        }
-        else if (dx == 0 && dy == 1)
-        {
-            Console.Write("v");
-            //Console.Write("↓");
-        }
-        else if (dx == 1 && dy == 0)
-        {
-            Console.Write(">");
-            //Console.Write("→");
-        }
-        else if (dx == -1 && dy == 0)
-        {
-            Console.Write("<");
-            //Console.Write("←");
-        }
+            Direction.Up => '^',
+            Direction.Down => 'v',
+            Direction.Left => '<',
+            Direction.Right => '>',
+            _ => throw new NotImplementedException()
+        };
+
+        Console.Write(headChar);
     }
-
-
-    public async Task Run(CancellationToken token = default)
-    {
-        PrintBorder();
-        PrintFood(food.X, food.Y); // initial food
-
-        while (!token.IsCancellationRequested)
-        {
-            WaitForKeyPressAndSetDirectionAndDelay();
-            PrintStatusBar();
-
-            // save old head and tail
-            var oldTail = segments.Last.Value;
-            var oldHead = segments.First.Value;
-
-            // head to the new position
-            var head = new Point(segments.First.Value.X + dx,
-                                   segments.First.Value.Y + dy);
-
-            segments.AddFirst(head);
-
-            if (head == food) // Eat the food
-            {
-                await CreateFood(token);
-                PrintFood(food.X, food.Y); // new food
-
-                foodEaten++;
-                PrintStatusBar();
-            }
-            else
-            {
-                segments.RemoveLast();
-            }
-
-            ConsoleHelper.ClearText(oldTail.X, oldTail.Y); // remove old tail
-
-
-            DrawSnakeHead(head, dx, dy);
-            // replace old head with snakeChar
-            ConsoleHelper.ResetCursorPosition(oldHead.X, oldHead.Y);
-            Console.Write(snakeChar);
-
-
-
-
-            // Check for collision with walls or itself
-            bool hasCollision = HasCollision(head.X, head.Y);
-            if (hasCollision)
-            {
-                await PrintGameOver(token);
-                break;
-            }
-
-            await Task.Delay((int)GetDelay(), token);
-        }
-    }
-
-
 
     private double GetDelay()
     {
         var defaultDelay = speedBoosted ? delayBoost : delay;
-        return dx == 0 ? defaultDelay : defaultDelay * .8;   // slower by 20% when moving horizontally
+        return currentPosition == Direction.Left | Direction.Right == 0
+            ? defaultDelay
+            : defaultDelay * DEFAULT_VERTICAL_DELAY_RATIO;
     }
 
     private bool HasCollision(int x, int y)
@@ -165,6 +185,68 @@ public class Snake
                 || y == borderRec.Bottom
                 || segments.Skip(1).Any(i => i.X == x && i.Y == y);
     }
+
+    private void WaitForKeyPressAndSetDirectionAndDelay()
+    {
+        if (!Console.KeyAvailable)
+            return;
+
+        var key = Console.ReadKey(true).Key;
+
+        if (key == ConsoleKey.P)
+        {
+            isPaused = !isPaused;
+            if (isPaused)
+            {
+                string pauseMessage = "PAUSED. Press ANY key to continue";
+                PrintStatusBarWithMessage(pauseMessage);
+                Console.ReadKey(true);
+                isPaused = false;
+            }
+        }
+        else if (key == ConsoleKey.UpArrow)
+        {
+            currentPosition = Direction.Up;
+        }
+        else if (key == ConsoleKey.DownArrow)
+        {
+            currentPosition = Direction.Down;
+        }
+        else if (key == ConsoleKey.LeftArrow)
+        {
+            currentPosition = Direction.Left;
+        }
+        else if (key == ConsoleKey.RightArrow)
+        {
+            currentPosition = Direction.Right;
+        }
+        else if (key == ConsoleKey.Spacebar)
+        {
+            speedBoosted = !speedBoosted;
+        }
+    }
+
+    private void PrintBorder()
+    {
+        // Draw border
+        for (int i = borderRec.X; i < borderRec.Right; i++)
+        {
+            ConsoleHelper.ResetCursorPosition(i, borderRec.Y); // first line
+            Console.Write(BORDER_CHAR);
+            ConsoleHelper.ResetCursorPosition(i, borderRec.Bottom); // last line
+            Console.Write(BORDER_CHAR);
+        }
+
+        for (int i = borderRec.Y; i < borderRec.Y + borderRec.Height; i++)
+        {
+            ConsoleHelper.ResetCursorPosition(borderRec.X, i); // first column
+            Console.Write(BORDER_CHAR);
+            ConsoleHelper.ResetCursorPosition(borderRec.Right, i); // last column
+            Console.Write(BORDER_CHAR);
+        }
+    }
+
+    #region Game Over/Completed Methods
 
     private async Task PrintComplete(CancellationToken token = default)
     {
@@ -188,58 +270,21 @@ public class Snake
         var message = "Game Over!";
 
         var middle = GetCenterOfBorder(message.Length / 2);
-        
+
         await ConsoleHelper.PrintBlinkingText(message, middle, delay: 500, token);
     }
 
-    private void WaitForKeyPressAndSetDirectionAndDelay()
-    {
-        if (!Console.KeyAvailable)
-            return;
+    #endregion
 
-        var key = Console.ReadKey(true).Key;
-
-        if (key == ConsoleKey.P)
-        {
-            isPaused = !isPaused;
-            if (isPaused)
-            {
-                string pauseMessage = "PAUSED. Press ANY key to continue";
-                PrintStatusBarWithMessage(pauseMessage);
-                Console.ReadKey(true);
-                isPaused = false;
-            }
-        }
-        else if (key == ConsoleKey.UpArrow && dy == 0)
-        {
-            dx = 0; dy = -1;
-        }
-        else if (key == ConsoleKey.DownArrow && dy == 0)
-        {
-            dx = 0; dy = 1;
-        }
-        else if (key == ConsoleKey.LeftArrow && dx == 0)
-        {
-            dx = -1; dy = 0;
-        }
-        else if (key == ConsoleKey.RightArrow && dx == 0)
-        {
-            dx = 1; dy = 0;
-        }
-        else if (key == ConsoleKey.Spacebar)
-        {
-            speedBoosted = !speedBoosted;
-        }
-    }
+    #region StatusBar Methods
 
     private void PrintStatusBar()
     {
-        var direction = dx == 0 ? (dy == -1 ? "UP" : "DOWN") : (dx == -1 ? "LEFT" : "RIGHT");
         var message = string.Format("Eaten: {0}, L: {1}, S: {2}, Dir: {3}, Delay: {4}, Food: {5}, Head: {6}",
                                 foodEaten,
                                 segments.Count,
                                 borderRec.Width + "x" + borderRec.Height,
-                                direction,
+                                currentPosition.ToString(),
                                 GetDelay().ToString("#"),
                                 $"X:{borderRec.X + food.X}, Y: {borderRec.Y + food.Y}",
                                 $"{segments.First.Value.X},{segments.First.Value.Y}");
@@ -260,34 +305,33 @@ public class Snake
         Console.Write(message);
     }
 
-    private void PrintBorder()
+    #endregion
+
+    #region Food Methods
+
+    private async Task CreateFood(CancellationToken token = default)
     {
-        // Draw border
-        for (int i = borderRec.X; i < borderRec.Right; i++)
+        if (emptyPoints.Count == 0)
         {
-            ConsoleHelper.ResetCursorPosition(i, borderRec.Y); // first line
-            Console.Write(borderChar);
-            ConsoleHelper.ResetCursorPosition(i, borderRec.Bottom); // last line
-            Console.Write(borderChar);
+            await PrintComplete(token);
+            return;
         }
 
-        for (int i = borderRec.Y; i < borderRec.Y + borderRec.Height; i++)
-        {
-            ConsoleHelper.ResetCursorPosition(borderRec.X, i); // first column
-            Console.Write(borderChar);
-            ConsoleHelper.ResetCursorPosition(borderRec.Right, i); // last column
-            Console.Write(borderChar);
-        }
+        var randomIndex = Random.Shared.Next(0, emptyPoints.Count);
+        food = emptyPoints.ElementAt(randomIndex);
+        emptyPoints.Remove(food);
     }
 
     private static void PrintFood(int x, int y)
     {
         var currentColor = Console.ForegroundColor;
         ConsoleHelper.ResetCursorPosition(x, y);
-        Console.ForegroundColor = ConsoleColor.Green;
-        Console.Write("*");
+        Console.ForegroundColor = FOOD_COLOR;
+        Console.Write(FOOD_CHAR);
         Console.ForegroundColor = currentColor;
     }
+
+    #endregion
 
     #region Helper Methods
 
@@ -296,6 +340,35 @@ public class Snake
         return new Point((borderRec.Left + borderRec.Right) / 2 - xOffSet,
                          (borderRec.Top + borderRec.Bottom) / 2 - yOffSet);
     }
-    
+
+    #endregion
+
+    #region Property Set Methods
+
+    public void SetSnakeChar(char snakeChar)
+    {
+        this.snakeChar = snakeChar;
+    }
+
+    public void SetSnakeStartingPoint(Point snakeStartingPoint)
+    {
+        this.snakeStartingPoint = snakeStartingPoint;
+    }
+
+    public void SetInitialSnakeLength(int initialSnakeLength)
+    {
+        this.initialSnakeLength = initialSnakeLength;
+    }
+
+    public void SetCurrentPosition(Direction currentPosition)
+    {
+        this.currentPosition = currentPosition;
+    }
+
+    public void SetBorderRec(Rectangle borderRec)
+    {
+        this.borderRec = borderRec;
+    }
+
     #endregion
 }
