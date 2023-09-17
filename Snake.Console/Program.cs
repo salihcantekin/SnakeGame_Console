@@ -87,11 +87,7 @@ class Snake
 
     private void DrawSnake(LinkedList<Point> segments)
     {
-        foreach (var segment in segments.Skip(1))
-        {
-            ResetCursorPosition(segment.X, segment.Y);
-            Console.Write(snakeChar);
-        }
+        
     }
 
     private static void DrawSnakeHead(Point position, int dx, int dy)
@@ -134,6 +130,7 @@ class Snake
 
             // save old tail
             var oldTail = segments.Last.Value;
+            var oldHead = segments.First.Value;
 
             // head to the new position
             Point head = new Point(segments.First.Value.X + dx,
@@ -156,8 +153,11 @@ class Snake
 
             ClearText(oldTail.X, oldTail.Y); // remove old tail
 
-            DrawSnake(segments);
+            
             DrawSnakeHead(head, dx, dy);
+            // replace old head with snakeChar
+            ResetCursorPosition(oldHead.X, oldHead.Y);
+            Console.Write(snakeChar);
 
 
 
