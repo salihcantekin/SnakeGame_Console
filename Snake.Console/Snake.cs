@@ -33,7 +33,7 @@ public class Snake
 
     private Point food, snakeStartingPoint;
     private int foodEaten = 0, initialSnakeLength;
-    private Direction currentPosition;
+    private Direction currentDirection;
     private Rectangle borderRec;
 
     private char borderChar, foodChar;
@@ -63,7 +63,7 @@ public class Snake
 
     #endregion
 
-    
+
     public async Task Run(CancellationToken token = default)
     {
         Adjust();
@@ -80,8 +80,8 @@ public class Snake
             var oldHead = segments.First.Value;
 
             // head to the new position
-            var x = currentPosition == Direction.Right ? 1 : currentPosition == Direction.Left ? -1 : 0;
-            var y = currentPosition == Direction.Down ? 1 : currentPosition == Direction.Up ? -1 : 0;
+            var x = currentDirection == Direction.Right ? 1 : currentDirection == Direction.Left ? -1 : 0;
+            var y = currentDirection == Direction.Down ? 1 : currentDirection == Direction.Up ? -1 : 0;
             var head = new Point(oldHead.X + x,
                                  oldHead.Y + y);
 
@@ -99,12 +99,12 @@ public class Snake
             else
             {
                 segments.RemoveLast();
+                ConsoleHelper.ClearText(oldTail.X, oldTail.Y); // remove old tail
             }
 
-            ConsoleHelper.ClearText(oldTail.X, oldTail.Y); // remove old tail
 
 
-            DrawSnakeHead(head, currentPosition);
+            DrawSnakeHead(head, currentDirection);
             // replace old head with snakeChar
             ConsoleHelper.ResetCursorPosition(oldHead.X, oldHead.Y);
             Console.Write(snakeChar);
@@ -151,12 +151,12 @@ public class Snake
         snakeChar = DEFAULT_SNAKE_CHAR;
         initialSnakeLength = DEFAULT_SNAKE_LENGTH;
         snakeStartingPoint = new Point(1, 1);
-        currentPosition = DEFAULT_DIRECTION;
+        currentDirection = DEFAULT_DIRECTION;
         foodChar = DEFAULT_FOOD_CHAR;
         borderChar = DEFAULT_BORDER_CHAR;
     }
 
-    
+
 
     private static void DrawSnakeHead(Point position, Direction currentPosition)
     {
@@ -177,7 +177,7 @@ public class Snake
     private double GetDelay()
     {
         var defaultDelay = speedBoosted ? delayBoost : delay;
-        return currentPosition == Direction.Left || currentPosition == Direction.Right
+        return currentDirection == Direction.Left || currentDirection == Direction.Right
             ? defaultDelay
             : defaultDelay / DEFAULT_VERTICAL_DELAY_RATIO;
     }
@@ -211,19 +211,19 @@ public class Snake
         }
         else if (key == ConsoleKey.UpArrow)
         {
-            currentPosition = Direction.Up;
+            currentDirection = Direction.Up;
         }
         else if (key == ConsoleKey.DownArrow)
         {
-            currentPosition = Direction.Down;
+            currentDirection = Direction.Down;
         }
         else if (key == ConsoleKey.LeftArrow)
         {
-            currentPosition = Direction.Left;
+            currentDirection = Direction.Left;
         }
         else if (key == ConsoleKey.RightArrow)
         {
-            currentPosition = Direction.Right;
+            currentDirection = Direction.Right;
         }
         else if (key == ConsoleKey.Spacebar)
         {
@@ -289,7 +289,7 @@ public class Snake
                                 foodEaten,
                                 segments.Count,
                                 borderRec.Width + "x" + borderRec.Height,
-                                currentPosition.ToString(),
+                                currentDirection.ToString(),
                                 GetDelay().ToString("#"),
                                 $"{borderRec.X + food.X},{borderRec.Y + food.Y}",
                                 $"{segments.First.Value.X},{segments.First.Value.Y}");
@@ -367,7 +367,7 @@ public class Snake
 
     public void SetCurrentPosition(Direction currentPosition)
     {
-        this.currentPosition = currentPosition;
+        this.currentDirection = currentPosition;
     }
 
     public void SetBorderRec(Rectangle borderRec)
