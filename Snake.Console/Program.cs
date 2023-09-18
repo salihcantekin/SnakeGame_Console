@@ -5,7 +5,7 @@ using System.Drawing;
 Console.CursorVisible = false;
 
 int borderWidth = 50, borderHeigth = 20;
-int borderX = 5, borderY = 5;
+int borderX = 20, borderY = 5;
 
 var message = "Press any key to start the game";
 
@@ -22,5 +22,6 @@ Snake snake = new(snakeChar: 'O',
 
 snake.SetSnakeChar('■');
 snake.SetInitialSnakeLength(5);
+snake.SetFoodChar('■');
 
 await snake.Run();
